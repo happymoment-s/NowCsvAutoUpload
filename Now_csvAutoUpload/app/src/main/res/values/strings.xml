@@ -1,3 +1,18 @@
 <resources>
     <string name="app_name">Now_csvAutoUpload</string>
+
+    <string-array name="app_file_browser">
+        <item>Astro File Manager</item>
+        <item>ES File Explorer</item>
+        <item>File Manager</item>
+        <item>Total Commander</item>
+        <item>Search for others</item>
+    </string-array>
+    <string-array name="app_file_browser_action">
+        <item>market://details?id=com.metago.astro</item>
+        <item>market://details?id=com.estrongs.android.pop</item>
+        <item>market://details?id=com.rhmsoft.fm</item>
+        <item>market://details?id=com.ghisler.android.TotalCommander</item>
+        <item>market://search?q=file manager</item>
+    </string-array>
 </resources>
