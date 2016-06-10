@@ -5,7 +5,6 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
-import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
@@ -14,14 +13,19 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.ListView;
 import android.widget.TextView;
+import android.widget.Toast;
 
-import java.io.BufferedReader;
+import com.opencsv.CSVReader;
+
+import java.io.BufferedInputStream;
 import java.io.File;
-import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.List;
 
+import kr.or.hcc.young.csvautoupload.Const;
 import kr.or.hcc.young.csvautoupload.R;
+import kr.or.hcc.young.csvautoupload.data.NowData;
 import kr.or.hcc.young.csvautoupload.filechooser.FileBrowserAppsAdapter;
 
 public class MainActivity extends AppCompatActivity {
@@ -106,74 +110,86 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void extractFileInfoFromUri(final Uri uri) {
-        final String path = uri.getPath();
-        final File file = new File(path);
-        boolean isFileExists = file.exists();
-        String filePath = "";
-        try {
-            filePath = getPath(mContext, uri);
-        } catch (URISyntaxException e) {
-            e.printStackTrace();
+        // file name 추출
+        String fileName = new File(uri.getPath()).getName();
+        // 파일 확장자가 csv가 아니면 에러처리
+        if (!fileName.contains(".csv")) {
+            showErrorToast(mContext, Const.ERROR_NOT_CSV_FILE);
+            return;
         }
-        Log.e("test", "file : " + file.getName() + " / " + file.getPath() + " / " + isFileExists + " / " + file.getAbsolutePath() + "\n"
-                + " / ");
-        Log.e("test", "uri : " + uri.toString() + " / " + uri.getScheme() + " / " + uri.getPath());
-        Log.e("test", "filePath : " + filePath);
 
-        readFile(uri);
-        mFileNameTextView.setText(file.getName());
+        // set file name
+        mFileNameTextView.setText(fileName);
+        // csv parsing
+        List<NowData> nowDataList = extractNowDataFromCsvFile(uri);
+
+        if (nowDataList != null && nowDataList.size() > 0) {
+            for (NowData nowData : nowDataList) {
+                Log.i("Test", nowData.toString());
+            }
+        } else {
+            Log.i("Test", "데이터 없음");
+            return;
+        }
+
+        // TODO for문 돌면서 하나씩 서버에 업로드
+        for (NowData nowData : nowDataList) {
+            Log.i("Test", nowData.toString());
+        }
     }
 
-    public void readFile(Uri uri) {
-        // new CSVReader(new InputStreamReader(new BufferedInputStream(getContentResolver().openInputStream(uri))));
+    private List<NowData> extractNowDataFromCsvFile(Uri uri) {
+        List<NowData> nowDataList = new ArrayList<>();
         try {
-            InputStream inputStream = getContentResolver().openInputStream(uri);
-            assert inputStream != null;
-            BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
-            StringBuilder stringBuilder = new StringBuilder();
-            String inputLine;
-                while ((inputLine = reader.readLine()) != null) {
-                    stringBuilder.append(inputLine);
+            CSVReader csvReader = new CSVReader(new InputStreamReader(new BufferedInputStream(getContentResolver().openInputStream(uri)), "MS949"), '$');
+            String[] nextLine;
+            int date = 0, title = 1, content = 2, explanation = 3; // default index 설정
+            while ((nextLine = csvReader.readNext()) != null) {
+                if (nextLine.length < 4) continue;
+                if (nextLine[0].contains("date")) { //csv 파일에 해당명칭으로 설정되어있다면 index 재설정
+                    for (int i = 0; i < nextLine.length; ++i) {
+                        if (nextLine[i].contains("date")) date = i;
+                        else if (nextLine[i].contains("title")) title = i;
+                        else if (nextLine[i].contains("content")) content = i;
+                        else if (nextLine[i].contains("explanation")) explanation = i;
+                    }
+                    if (date < 0 || title < 0 || content < 0 || explanation < 0) break;
+                    continue;
                 }
-            reader.close();
-            inputStream.close();
-            Log.e("test", "result : " + stringBuilder.toString());
+
+                String dateString = nextLine[date];
+                String titleString = nextLine[title];
+                String contentString = nextLine[content];
+                String explanationString = nextLine[explanation];
+                NowData nowData = new NowData(dateString, titleString, contentString, explanationString);
+                nowDataList.add(nowData);
+            }
         } catch (Exception e) {
             e.printStackTrace();
+            // Exception 발생시
+            showErrorToast(mContext, Const.ERROR_CSV_PARSING);
         }
+
+        // parsing 후 arrayList에 아무것도 들어있지 않을 경우
+        if (nowDataList.size() <= 0) {
+            showErrorToast(mContext, Const.ERROR_CSV_PARSING);
+        }
+        return nowDataList;
     }
 
-    public String getPathFromUri(Uri uri){
-        Cursor cursor = getContentResolver().query(uri, null, null, null, null );
-        String path = null;
-        if (cursor != null && cursor.getCount() > 0) {
-            cursor.moveToNext();
-            path = cursor.getString(cursor.getColumnIndex("_data"));
-            cursor.close();
+    private void showErrorToast(Context context, int errorCode) {
+        String message = "";
+        switch (errorCode) {
+            case Const.ERROR_NOT_CSV_FILE:
+                message = "csv파일이 아닙니다.";
+                break;
+            case Const.ERROR_CSV_PARSING:
+                message = "csv파일 parsing에 실패하였습니다.";
+                break;
+            case Const.ERROR_SERVER_UPLOAD:
+                message = "서버 업로드에 실패하였습니다.";
+                break;
         }
-        return path;
-    }
-
-    public static String getPath(Context context, Uri uri) throws URISyntaxException {
-        if ("content".equalsIgnoreCase(uri.getScheme())) {
-            String[] projection = {"_data"};
-            Cursor cursor;
-
-            try {
-                cursor = context.getContentResolver().query(uri, projection, null, null, null);
-                if (cursor != null) {
-                    int column_index = cursor.getColumnIndexOrThrow("_data");
-                    if (cursor.moveToFirst()) {
-                        return cursor.getString(column_index);
-                    }
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        } else if ("file".equalsIgnoreCase(uri.getScheme())) {
-            return uri.getPath();
-        }
-
-        return null;
+        Toast.makeText(context, errorCode + " / " + message, Toast.LENGTH_SHORT).show();
     }
 }
