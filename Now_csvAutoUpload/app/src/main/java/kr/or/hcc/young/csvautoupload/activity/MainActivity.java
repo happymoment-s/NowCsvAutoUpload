@@ -27,6 +27,7 @@ import kr.or.hcc.young.csvautoupload.Const;
 import kr.or.hcc.young.csvautoupload.R;
 import kr.or.hcc.young.csvautoupload.data.NowData;
 import kr.or.hcc.young.csvautoupload.filechooser.FileBrowserAppsAdapter;
+import kr.or.hcc.young.csvautoupload.filechooser.NowUploadAsyncTask;
 
 public class MainActivity extends AppCompatActivity {
     private static final int SELECT_FILE_REQUEST = 1;
@@ -34,6 +35,9 @@ public class MainActivity extends AppCompatActivity {
 
     private TextView mFileNameTextView;
     private Button mSelectFileButton;
+    private Button mUploadButton;
+
+    private List<NowData> mNowDataList;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,6 +51,7 @@ public class MainActivity extends AppCompatActivity {
     private void initView() {
         mFileNameTextView = (TextView) findViewById(R.id.file_name_textview);
         mSelectFileButton = (Button) findViewById(R.id.select_file_button);
+        mUploadButton = (Button) findViewById(R.id.upload_button);
 
         mSelectFileButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -54,6 +59,19 @@ public class MainActivity extends AppCompatActivity {
                 openFileChooser(mContext);
             }
         });
+
+        mUploadButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (mNowDataList != null && mNowDataList.size() > 0) {
+                    // TODO 서버 업로드 + progressDialog AsyncTask
+                    new NowUploadAsyncTask(mContext, mNowDataList).execute();
+                } else {
+                    Toast.makeText(getApplicationContext(), "올바른 파일이 선택되지 않았습니다.", Toast.LENGTH_LONG).show();
+                }
+            }
+        });
+
     }
 
     @SuppressLint("InflateParams")
@@ -121,20 +139,15 @@ public class MainActivity extends AppCompatActivity {
         // set file name
         mFileNameTextView.setText(fileName);
         // csv parsing
-        List<NowData> nowDataList = extractNowDataFromCsvFile(uri);
+        mNowDataList = extractNowDataFromCsvFile(uri);
 
-        if (nowDataList != null && nowDataList.size() > 0) {
-            for (NowData nowData : nowDataList) {
+        // Log
+        if (mNowDataList != null && mNowDataList.size() > 0) {
+            for (NowData nowData : mNowDataList) {
                 Log.i("Test", nowData.toString());
             }
         } else {
             Log.i("Test", "데이터 없음");
-            return;
-        }
-
-        // TODO for문 돌면서 하나씩 서버에 업로드
-        for (NowData nowData : nowDataList) {
-            Log.i("Test", nowData.toString());
         }
     }
 
